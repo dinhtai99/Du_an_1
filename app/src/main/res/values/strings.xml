@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Quản Lý Shop THB</string>
+    <string name="dang_nhap">Đăng nhập</string>
+    <string name="dang_ky">Đăng ký</string>
+    <string name="dang_xuat">Đăng xuất</string>
+    <string name="doi_mat_khau">Đổi mật khẩu</string>
+    <string name="quan_ly_nhan_vien">Quản lý nhân viên</string>
+    <string name="quan_ly_loai_san_pham">Loại sản phẩm</string>
+    <string name="quan_ly_san_pham">Sản phẩm</string>
+    <string name="quan_ly_khach_hang">Khách hàng</string>
+    <string name="quan_ly_hoa_don">Hóa đơn</string>
+    <string name="thong_ke_bao_cao">Thống kê &amp; Báo cáo</string>
+</resources>

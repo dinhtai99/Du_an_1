@@ -2,15 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
-const { verifyToken } = require("../middleware/authMiddleware");
-
-// Middleware kiểm tra quyền Admin
-const requireAdmin = (req, res, next) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Chỉ Admin mới có quyền thực hiện thao tác này!" });
-  }
-  next();
-};
+const { verifyToken, requireAdmin } = require("../middleware/authMiddleware");
 
 // 👥 Lấy danh sách nhân viên (Admin only)
 router.get("/", verifyToken, requireAdmin, async (req, res) => {

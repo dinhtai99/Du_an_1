@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
@@ -32,6 +31,7 @@ class Settings(BaseSettings):
     GOOGLE_FLOW_URL: str = "https://flow.google.com"
     BROWSER_HEADLESS: bool = False
     BROWSER_TIMEOUT_MS: int = 45000
+    FLOW_GENERATION_TIMEOUT_MS: int = 240000
     
     # Audio & Video Engine
     FFMPEG_PATH: str = "/opt/homebrew/bin/ffmpeg"
@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     VIDEO_WIDTH: int = 1080
     VIDEO_HEIGHT: int = 1920
     VIDEO_FPS: int = 30
+    VIDEO_ENCODER: str = "h264_videotoolbox"
+    VIDEO_BITRATE: str = "6M"
+
+    # Local web apps
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     
     class Config:
         env_file = ".env"

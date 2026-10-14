@@ -12,7 +12,6 @@ from playwright.async_api import (
     Locator,
     Page,
     Playwright,
-    TimeoutError as PlaywrightTimeoutError,
     async_playwright,
 )
 
@@ -33,6 +32,7 @@ class GoogleFlowClient:
         "textarea",
         "[contenteditable='true']",
     )
+    _download_button_pattern = re.compile(r"download|tải.*xuống", re.I)
 
     def __init__(self) -> None:
         self._playwright: Optional[Playwright] = None
@@ -91,6 +91,7 @@ class GoogleFlowClient:
 
             destination_dir.mkdir(parents=True, exist_ok=True)
             baseline_images = await page.locator("img").count()
+            baseline_flow_images = await self._flow_image_sources(page)
             baseline_downloads = await self._download_button_count(page)
 
             await self._fill_prompt(prompt_box, prompt)
@@ -106,6 +107,9 @@ class GoogleFlowClient:
             while asyncio.get_running_loop().time() < deadline:
                 await asyncio.sleep(2)
                 if await self._download_button_count(page) > baseline_downloads:
+                    break
+                if (await self._flow_image_sources(page)) - baseline_flow_images:
+                    await asyncio.sleep(2)
                     break
                 if await page.locator("img").count() > baseline_images:
                     await asyncio.sleep(3)
@@ -283,8 +287,19 @@ class GoogleFlowClient:
     async def _download_button_count(self, page: Page) -> int:
         return await page.get_by_role(
             "button",
-            name=re.compile(r"download|tải xuống", re.I),
+            name=self._download_button_pattern,
         ).count()
+
+    async def _flow_image_sources(self, page: Page) -> set[str]:
+        images = page.locator("img[src*='flow-content.google']")
+        sources: set[str] = set()
+        for index in range(await images.count()):
+            source = await images.nth(index).evaluate(
+                "element => element.currentSrc || element.src"
+            )
+            if source:
+                sources.add(source.split("?", 1)[0])
+        return sources
 
     async def _download_latest_image(
         self,
@@ -292,23 +307,61 @@ class GoogleFlowClient:
         destination_dir: Path,
         scene_order: int,
     ) -> Path:
+        direct_image = await self._save_visible_flow_image(
+            page,
+            destination_dir,
+            scene_order,
+        )
+        if direct_image is not None:
+            return direct_image
+
         buttons = page.get_by_role(
             "button",
-            name=re.compile(r"download|tải xuống", re.I),
+            name=self._download_button_pattern,
         )
         button = await self._last_visible(buttons)
 
         if button is None:
             images = page.locator("img")
-            for index in reversed(range(await images.count())):
+            viewport = await page.evaluate(
+                "() => ({width: window.innerWidth, height: window.innerHeight})"
+            )
+            candidates: list[tuple[float, Locator]] = []
+            for index in range(await images.count()):
                 image = images.nth(index)
-                if await image.is_visible():
-                    await image.hover()
-                    await image.click()
-                    await page.wait_for_timeout(800)
+                if not await image.is_visible():
+                    continue
+                box = await image.bounding_box()
+                if box is None:
+                    continue
+                center_x = box["x"] + box["width"] / 2
+                center_y = box["y"] + box["height"] / 2
+                if not (
+                    0 < center_x < viewport["width"]
+                    and 0 < center_y < viewport["height"]
+                ):
+                    continue
+                candidates.append((box["width"] * box["height"], image))
+
+            for _, image in sorted(candidates, key=lambda item: item[0], reverse=True):
+                try:
+                    box = await image.bounding_box()
+                    if box is None:
+                        continue
+                    await page.mouse.move(
+                        box["x"] + box["width"] / 2,
+                        box["y"] + box["height"] / 2,
+                    )
+                    await page.wait_for_timeout(350)
                     button = await self._last_visible(buttons)
+                    if button is None:
+                        await image.click(timeout=3000)
+                        await page.wait_for_timeout(800)
+                        button = await self._last_visible(buttons)
                     if button is not None:
                         break
+                except PlaywrightError:
+                    continue
 
         if button is None:
             raise FlowUserActionRequired(
@@ -319,7 +372,7 @@ class GoogleFlowClient:
             async with page.expect_download(timeout=20000) as download_info:
                 await button.click()
             download = await download_info.value
-        except PlaywrightTimeoutError as exc:
+        except PlaywrightError as exc:
             raise FlowUserActionRequired(
                 "Flow chưa bắt đầu tải ảnh. Hãy kiểm tra ảnh mới nhất và quyền tải xuống."
             ) from exc
@@ -330,6 +383,56 @@ class GoogleFlowClient:
         destination = destination_dir / f"scene_{scene_order:03d}{suffix}"
         await download.save_as(str(destination))
         return destination
+
+    async def _save_visible_flow_image(
+        self,
+        page: Page,
+        destination_dir: Path,
+        scene_order: int,
+    ) -> Optional[Path]:
+        images = page.locator("img[src*='flow-content.google']")
+        viewport = await page.evaluate(
+            "() => ({width: window.innerWidth, height: window.innerHeight})"
+        )
+        candidates: list[tuple[float, str]] = []
+        for index in range(await images.count()):
+            image = images.nth(index)
+            if not await image.is_visible():
+                continue
+            box = await image.bounding_box()
+            if box is None:
+                continue
+            center_x = box["x"] + box["width"] / 2
+            center_y = box["y"] + box["height"] / 2
+            if not (
+                0 < center_x < viewport["width"]
+                and 0 < center_y < viewport["height"]
+            ):
+                continue
+            source = await image.evaluate("element => element.currentSrc || element.src")
+            if source:
+                candidates.append((box["width"] * box["height"], source))
+
+        content_type_suffixes = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+        }
+        for _, source in sorted(candidates, key=lambda item: item[0], reverse=True):
+            try:
+                async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                    response = await client.get(source)
+                    response.raise_for_status()
+                content_type = response.headers.get("content-type", "").split(";", 1)[0]
+                suffix = content_type_suffixes.get(content_type)
+                if suffix is None or not response.content:
+                    continue
+                destination = destination_dir / f"scene_{scene_order:03d}{suffix}"
+                destination.write_bytes(response.content)
+                return destination
+            except (httpx.HTTPError, OSError):
+                continue
+        return None
 
     async def _last_visible(self, locator: Locator) -> Optional[Locator]:
         for index in reversed(range(await locator.count())):

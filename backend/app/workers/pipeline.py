@@ -26,10 +26,11 @@ class PipelineWorker:
 
     async def start(self, request: PipelineStartRequest) -> PipelineJobResponse:
         job_id = str(uuid.uuid4())
-        project_dir = self.store.create_project_dir(job_id)
+        title = request.title or request.topic
+        project_dir = self.store.create_project_dir(job_id, title)
         job = PipelineJobResponse(
             id=job_id,
-            title=request.title or request.topic,
+            title=title,
             topic=request.topic,
             project_dir=str(project_dir),
             request=request,
@@ -136,14 +137,14 @@ class PipelineWorker:
                 if job.request.render_video:
                     job.current_step = "Đang ghép video bằng FFmpeg"
                     self.store.save(job)
-                    output_path = settings.EXPORTS_DIR / f"{job.id}.mp4"
+                    output_path = Path(job.project_dir) / "video" / "video.mp4"
                     await self.renderer.render(
                         scenes=job.scenes,
                         output_path=output_path,
                         logo_path=job.request.logo_path,
                     )
                     job.output_video_path = str(output_path)
-                    job.output_video_url = f"/media/{output_path.name}"
+                    job.output_video_url = f"/api/v1/pipeline/jobs/{job.id}/video"
                     completed_units += 1
 
                 job.status = "completed"

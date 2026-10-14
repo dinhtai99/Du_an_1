@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 from app.schemas.pipeline import (
     FlowSessionStatus,
@@ -58,6 +60,21 @@ async def get_job(job_id: str, request: Request) -> PipelineJobResponse:
         return worker_from(request).get(job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ.") from exc
+
+
+@router.get("/pipeline/jobs/{job_id}/video", response_class=FileResponse)
+async def get_job_video(job_id: str, request: Request) -> FileResponse:
+    try:
+        job = worker_from(request).get(job_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ.") from exc
+    if not job.output_video_path or not Path(job.output_video_path).is_file():
+        raise HTTPException(status_code=404, detail="Video chưa được tạo xong.")
+    return FileResponse(
+        job.output_video_path,
+        media_type="video/mp4",
+        filename=f"{job.title}.mp4",
+    )
 
 
 @router.post("/pipeline/jobs/{job_id}/resume", response_model=PipelineJobResponse)

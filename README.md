@@ -44,8 +44,11 @@ Backend API: http://127.0.0.1:8000/docs
 
 ## Lưu trữ
 
-- Trạng thái và tài nguyên từng dự án: `storage/projects/<job-id>/`
-- Video hoàn chỉnh: `storage/exports/<job-id>.mp4`
+- Mỗi lần tạo kịch bản có một thư mục riêng tại
+  `~/Desktop/kichban/<ngày-giờ>-<chủ-đề>--<job-id>/`.
+- Mỗi thư mục kịch bản chứa `kich-ban.txt`, `images/`, `audio/`, `subtitles/`,
+  `debug/` và video hoàn chỉnh trong `video/video.mp4`.
+- Các tác vụ cũ trong `storage/projects/` và `storage/exports/` vẫn được hỗ trợ.
 - Phiên đăng nhập Flow: `storage/flow_browser_profile/`
 
 Thư mục `storage/` bị loại khỏi Git để không tải phiên đăng nhập và dữ liệu người

@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     
     # Storage directories
     STORAGE_DIR: Path = STORAGE_DIR
-    PROJECTS_DIR: Path = STORAGE_DIR / "projects"
+    PROJECTS_DIR: Path = Path.home() / "Desktop" / "kichban"
+    LEGACY_PROJECTS_DIR: Path = STORAGE_DIR / "projects"
     ASSETS_DIR: Path = STORAGE_DIR / "assets"
     PRODUCTS_DIR: Path = STORAGE_DIR / "products"
     LOGOS_DIR: Path = STORAGE_DIR / "logos"
@@ -59,11 +60,13 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 settings = Settings()
+settings.PROJECTS_DIR = settings.PROJECTS_DIR.expanduser()
 
 # Ensure directories exist
 for folder in [
     settings.STORAGE_DIR,
     settings.PROJECTS_DIR,
+    settings.LEGACY_PROJECTS_DIR,
     settings.ASSETS_DIR,
     settings.PRODUCTS_DIR,
     settings.LOGOS_DIR,

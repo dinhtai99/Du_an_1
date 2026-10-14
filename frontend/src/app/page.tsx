@@ -83,21 +83,37 @@ export default function Home() {
       .catch(() => {
         if (active) setFlow({ open: false, ready: false, message: "Backend chưa chạy" });
       });
+    requestJson<PipelineJob[]>("/api/v1/pipeline/jobs")
+      .then((jobs) => {
+        if (active && jobs.length > 0) setJob(jobs[0]);
+      })
+      .catch(() => undefined);
     return () => { active = false; };
   }, []);
 
+  const jobId = job?.id;
+  const jobStatus = job?.status;
+
   useEffect(() => {
-    if (!job || !["pending", "running"].includes(job.status)) return;
-    const timer = window.setInterval(async () => {
+    if (!jobId || jobStatus === "completed") return;
+
+    async function refreshJob() {
       try {
-        const latest = await requestJson<PipelineJob>(`/api/v1/pipeline/jobs/${job.id}`);
+        const latest = await requestJson<PipelineJob>(`/api/v1/pipeline/jobs/${jobId}`);
         setJob(latest);
+        setError(null);
       } catch (pollError) {
         setError(pollError instanceof Error ? pollError.message : "Không cập nhật được tác vụ");
       }
-    }, 1800);
-    return () => window.clearInterval(timer);
-  }, [job]);
+    }
+
+    const timer = window.setInterval(refreshJob, 1800);
+    window.addEventListener("focus", refreshJob);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshJob);
+    };
+  }, [jobId, jobStatus]);
 
   async function openFlow() {
     setBusy(true);

@@ -95,14 +95,20 @@ class VideoRenderer:
             "-i",
             str(scene.audio_path),
         ]
-        logo = Path(logo_path).expanduser() if logo_path else None
-        if logo and logo.is_file():
-            command.extend(["-loop", "1", "-i", str(logo)])
+        overlay = (
+            Path(logo_path).expanduser()
+            if logo_path
+            else settings.VIDEO_OVERLAY_PATH
+        )
+        if overlay.is_file():
+            command.extend(["-loop", "1", "-i", str(overlay)])
             command.extend(
                 [
                     "-filter_complex",
-                    f"[0:v]{video_filter}[base];[2:v]scale=180:-1[logo];"
-                    "[base][logo]overlay=W-w-40:40[outv]",
+                    f"[0:v]{video_filter}[base];"
+                    f"[2:v]scale={settings.VIDEO_WIDTH}:{settings.VIDEO_HEIGHT},"
+                    "format=rgba[overlay];"
+                    "[base][overlay]overlay=0:0:format=auto[outv]",
                     "-map",
                     "[outv]",
                     "-map",

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     VIDEO_FPS: int = 30
     VIDEO_ENCODER: str = "h264_videotoolbox"
     VIDEO_BITRATE: str = "6M"
+    VIDEO_OVERLAY_PATH: Path = BASE_DIR / "assets" / "video-overlay.png"
 
     # Local web apps
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

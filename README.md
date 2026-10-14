@@ -46,7 +46,7 @@ Backend API: http://127.0.0.1:8000/docs
 
 - Trạng thái và tài nguyên từng dự án: `storage/projects/<job-id>/`
 - Video hoàn chỉnh: `storage/exports/<job-id>.mp4`
-- Phiên đăng nhập Flow: `storage/chrome_profile/`
+- Phiên đăng nhập Flow: `storage/flow_browser_profile/`
 
 Thư mục `storage/` bị loại khỏi Git để không tải phiên đăng nhập và dữ liệu người
 dùng lên repository.

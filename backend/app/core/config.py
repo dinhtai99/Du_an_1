@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     LOGOS_DIR: Path = STORAGE_DIR / "logos"
     EXPORTS_DIR: Path = STORAGE_DIR / "exports"
     KNOWLEDGE_DIR: Path = STORAGE_DIR / "knowledge"
-    CHROME_PROFILE_DIR: Path = STORAGE_DIR / "chrome_profile"
+    CHROME_PROFILE_DIR: Path = STORAGE_DIR / "flow_browser_profile"
     
     # Database
     DATABASE_URL: str = f"sqlite:///{STORAGE_DIR / 'vietculture.db'}"
@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     BROWSER_HEADLESS: bool = False
     BROWSER_TIMEOUT_MS: int = 45000
     FLOW_GENERATION_TIMEOUT_MS: int = 240000
+    FLOW_REMOTE_DEBUGGING_PORT: int = 9223
     
     # Audio & Video Engine
     FFMPEG_PATH: str = "/opt/homebrew/bin/ffmpeg"

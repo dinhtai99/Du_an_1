@@ -4,7 +4,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from playwright.async_api import (
+    Browser,
     BrowserContext,
     Locator,
     Page,
@@ -33,13 +35,15 @@ class GoogleFlowClient:
 
     def __init__(self) -> None:
         self._playwright: Optional[Playwright] = None
+        self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
+        self._browser_process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
 
     async def open_session(self) -> FlowSessionStatus:
         page = await self._ensure_page()
-        if not page.url.startswith(settings.GOOGLE_FLOW_URL):
+        if not self._is_flow_url(page.url) and "accounts.google.com" not in page.url:
             await page.goto(
                 settings.GOOGLE_FLOW_URL,
                 wait_until="domcontentloaded",
@@ -122,10 +126,11 @@ class GoogleFlowClient:
                 raise
 
     async def close(self) -> None:
-        if self._context is not None:
-            await self._context.close()
+        # Chromium runs independently so a backend hot reload can reconnect to it.
+        # Stopping Playwright disconnects CDP without closing the user's Flow window.
         if self._playwright is not None:
             await self._playwright.stop()
+        self._browser = None
         self._context = None
         self._playwright = None
         self._page = None
@@ -134,23 +139,104 @@ class GoogleFlowClient:
         if self._page is not None and not self._page.is_closed():
             return self._page
 
-        self._playwright = await async_playwright().start()
-        launch_args: dict = {
-            "user_data_dir": str(settings.CHROME_PROFILE_DIR),
-            "headless": settings.BROWSER_HEADLESS,
-            "accept_downloads": True,
-            "viewport": {"width": 1440, "height": 1000},
-        }
-        chrome_path = Path(settings.CHROME_EXECUTABLE_PATH)
-        if chrome_path.is_file():
-            launch_args["executable_path"] = str(chrome_path)
+        if self._context is not None:
+            try:
+                pages = [page for page in self._context.pages if not page.is_closed()]
+                self._page = pages[0] if pages else await self._context.new_page()
+                self._page.set_default_timeout(settings.BROWSER_TIMEOUT_MS)
+                return self._page
+            except Exception:
+                self._browser = None
+                self._context = None
+                self._page = None
 
-        self._context = await self._playwright.chromium.launch_persistent_context(
-            **launch_args
-        )
-        self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
+
+        if not await self._connect_to_browser():
+            await self._start_browser()
+            for _ in range(40):
+                if await self._connect_to_browser():
+                    break
+                await asyncio.sleep(0.25)
+            else:
+                raise RuntimeError(
+                    "Chromium đã mở nhưng backend không kết nối được cổng điều khiển."
+                )
+
+        assert self._context is not None
+        pages = [page for page in self._context.pages if not page.is_closed()]
+        self._page = pages[0] if pages else await self._context.new_page()
         self._page.set_default_timeout(settings.BROWSER_TIMEOUT_MS)
         return self._page
+
+    async def _connect_to_browser(self) -> bool:
+        assert self._playwright is not None
+        endpoint = self._cdp_endpoint
+        if not await self._cdp_is_ready():
+            return False
+        try:
+            self._browser = await self._playwright.chromium.connect_over_cdp(
+                endpoint,
+                timeout=5000,
+            )
+        except Exception:
+            return False
+        if not self._browser.contexts:
+            return False
+        self._context = self._browser.contexts[0]
+        return True
+
+    async def _start_browser(self) -> None:
+        assert self._playwright is not None
+        chrome_path = Path(settings.CHROME_EXECUTABLE_PATH)
+        executable = (
+            str(chrome_path)
+            if chrome_path.is_file()
+            else self._playwright.chromium.executable_path
+        )
+        settings.CHROME_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        arguments = [
+            executable,
+            f"--remote-debugging-port={settings.FLOW_REMOTE_DEBUGGING_PORT}",
+            f"--user-data-dir={settings.CHROME_PROFILE_DIR}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-background-mode",
+            settings.GOOGLE_FLOW_URL,
+        ]
+        if settings.BROWSER_HEADLESS:
+            arguments.insert(-1, "--headless=new")
+        self._browser_process = await asyncio.create_subprocess_exec(
+            *arguments,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        for _ in range(60):
+            if await self._cdp_is_ready():
+                return
+            if self._browser_process.returncode is not None:
+                raise RuntimeError(
+                    f"Chromium đóng ngay sau khi khởi động (mã {self._browser_process.returncode})."
+                )
+            await asyncio.sleep(0.25)
+        raise RuntimeError("Chromium không mở cổng điều khiển sau 15 giây.")
+
+    async def _cdp_is_ready(self) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=1.0) as client:
+                response = await client.get(f"{self._cdp_endpoint}/json/version")
+                return response.status_code == 200
+        except httpx.HTTPError:
+            return False
+
+    @property
+    def _cdp_endpoint(self) -> str:
+        return f"http://127.0.0.1:{settings.FLOW_REMOTE_DEBUGGING_PORT}"
+
+    @staticmethod
+    def _is_flow_url(url: str) -> bool:
+        return "flow.google.com" in url or ("labs.google" in url and "/flow" in url)
 
     async def _find_prompt(self, page: Page) -> Optional[Locator]:
         for selector in self._prompt_selectors:

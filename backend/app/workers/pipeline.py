@@ -44,6 +44,10 @@ class PipelineWorker:
         existing = self._tasks.get(job_id)
         if existing and not existing.done():
             return job
+        for scene in job.scenes:
+            if scene.status in ("generating", "failed"):
+                scene.status = "pending"
+                scene.error_message = None
         job.status = "pending"
         job.error_message = None
         job.user_action_prompt = None
@@ -77,6 +81,7 @@ class PipelineWorker:
             total_units = max(len(job.scenes) * 2 + (1 if job.request.render_video else 0), 1)
             completed_units = sum(1 for scene in job.scenes if self._has_file(scene.image_path))
             completed_units += sum(1 for scene in job.scenes if self._has_file(scene.audio_path))
+            active_scene = None
 
             try:
                 for scene in job.scenes:
@@ -87,7 +92,9 @@ class PipelineWorker:
                             f"Cảnh {scene.order} chưa có image_path và chế độ tạo ảnh đã tắt."
                         )
 
+                    active_scene = scene
                     scene.status = "generating"
+                    scene.error_message = None
                     job.current_step = f"Google Flow đang tạo ảnh cảnh {scene.order}/{len(job.scenes)}"
                     self.store.save(job)
                     image_path = await self.flow.generate_image(
@@ -99,11 +106,14 @@ class PipelineWorker:
                     scene.status = "completed"
                     completed_units += 1
                     self._set_progress(job, completed_units, total_units)
+                    active_scene = None
 
                 for scene in job.scenes:
                     if self._has_file(scene.audio_path) and self._has_file(scene.subtitle_path):
                         continue
+                    active_scene = scene
                     scene.status = "generating"
+                    scene.error_message = None
                     job.current_step = f"Đang tạo giọng đọc cảnh {scene.order}/{len(job.scenes)}"
                     self.store.save(job)
                     audio_path = Path(job.project_dir) / "audio" / f"scene_{scene.order:03d}.mp3"
@@ -121,6 +131,7 @@ class PipelineWorker:
                     scene.status = "completed"
                     completed_units += 1
                     self._set_progress(job, completed_units, total_units)
+                    active_scene = None
 
                 if job.request.render_video:
                     job.current_step = "Đang ghép video bằng FFmpeg"
@@ -141,6 +152,9 @@ class PipelineWorker:
                 job.user_action_prompt = None
                 self.store.save(job)
             except FlowUserActionRequired as exc:
+                if active_scene is not None:
+                    active_scene.status = "pending"
+                    active_scene.error_message = None
                 job.status = "waiting_for_user"
                 job.current_step = "Đang chờ thao tác trên Google Flow"
                 job.user_action_prompt = str(exc)
@@ -148,6 +162,9 @@ class PipelineWorker:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                if active_scene is not None:
+                    active_scene.status = "failed"
+                    active_scene.error_message = str(exc)
                 job.status = "failed"
                 job.current_step = "Tác vụ thất bại"
                 job.error_message = str(exc)

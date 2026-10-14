@@ -90,6 +90,7 @@ input:disabled { color: #77837d; }
 .scene-row strong { font-size: 12px; }
 .scene-row p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .done { color: var(--green); }
+.scene-error { color: var(--danger); }
 .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: #cbd3ce; justify-self: center; }
 .download-button { width: 100%; text-decoration: none; background: var(--green); color: white; padding: 13px; margin-top: 20px; font-size: 13px; }
 .spin { animation: spin 1s linear infinite; }

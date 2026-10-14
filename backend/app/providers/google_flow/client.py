@@ -8,6 +8,7 @@ import httpx
 from playwright.async_api import (
     Browser,
     BrowserContext,
+    Error as PlaywrightError,
     Locator,
     Page,
     Playwright,
@@ -248,13 +249,17 @@ class GoogleFlowClient:
         return None
 
     async def _fill_prompt(self, locator: Locator, prompt: str) -> None:
-        tag = await locator.evaluate("element => element.tagName.toLowerCase()")
-        if tag in ("textarea", "input"):
+        try:
             await locator.fill(prompt)
             return
+        except PlaywrightError:
+            # Some Flow editor variants use a custom contenteditable surface
+            # that does not implement the native value setter used by fill().
+            pass
+
         await locator.click()
         await locator.press("Meta+A" if sys.platform == "darwin" else "Control+A")
-        await locator.insert_text(prompt)
+        await locator.press_sequentially(prompt, delay=1)
 
     async def _find_generate_button(self, page: Page) -> Optional[Locator]:
         patterns = (

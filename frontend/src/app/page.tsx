@@ -274,9 +274,10 @@ export default function Home() {
                     <CircleAlert size={18} />
                     <div>
                       <p>{job.user_action_prompt ?? job.error_message}</p>
-                      {job.status === "waiting_for_user" && (
+                      {["waiting_for_user", "failed"].includes(job.status) && (
                         <button type="button" className="text-button" onClick={resume} disabled={busy}>
-                          <RotateCcw size={15} /> Tôi đã xử lý, tiếp tục
+                          <RotateCcw size={15} />
+                          {job.status === "failed" ? "Thử lại tác vụ" : "Tôi đã xử lý, tiếp tục"}
                         </button>
                       )}
                     </div>
@@ -288,7 +289,7 @@ export default function Home() {
                     <div className="scene-row" key={scene.order}>
                       <span className="scene-number">{String(scene.order).padStart(2, "0")}</span>
                       <div><strong>Cảnh {scene.order}</strong><p>{scene.narration}</p></div>
-                      {scene.status === "completed" ? <CheckCircle2 className="done" size={18} /> : scene.status === "generating" ? <LoaderCircle className="spin" size={18} /> : <span className="pending-dot" />}
+                      {scene.status === "completed" ? <CheckCircle2 className="done" size={18} /> : scene.status === "generating" ? <LoaderCircle className="spin" size={18} /> : scene.status === "failed" ? <CircleAlert className="scene-error" size={18} /> : <span className="pending-dot" />}
                     </div>
                   ))}
                 </div>

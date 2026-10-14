@@ -14,7 +14,7 @@ class PipelineStartRequest(BaseModel):
     topic: str = Field(min_length=3, max_length=500)
     title: Optional[str] = None
     duration_target: int = Field(default=60, ge=15, le=300)
-    scene_count: int = Field(default=6, ge=3, le=12)
+    scene_count: int = Field(default=10, ge=3, le=24)
     storytelling_style: str = "Tôn kính và truyền cảm hứng"
     visual_style: str = "Tranh sơn mài và thủy mặc truyền thống Việt Nam"
     voice: str = "vi-VN-HoaiMyNeural"

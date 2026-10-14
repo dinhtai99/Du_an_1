@@ -87,9 +87,9 @@ class VideoRenderer:
             f"scale={settings.VIDEO_WIDTH}:{settings.VIDEO_HEIGHT}:"
             "force_original_aspect_ratio=increase,"
             f"crop={settings.VIDEO_WIDTH}:{settings.VIDEO_HEIGHT},setsar=1,"
-            f"subtitles='{subtitle_path}':force_style='FontName=Arial,FontSize=22,"
+            f"subtitles='{subtitle_path}':force_style='FontName=Arial,FontSize=10,"
             "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,"
-            "Outline=2,Shadow=1,Alignment=2,MarginV=110'"
+            "Outline=1,Shadow=0,Alignment=2,MarginL=30,MarginR=30,MarginV=20'"
         )
         command = [
             settings.FFMPEG_PATH,

@@ -66,7 +66,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [topic, setTopic] = useState("Ý nghĩa tục dâng sớ Táo Quân của người Việt");
-  const [sceneCount, setSceneCount] = useState(6);
+  const [sceneCount, setSceneCount] = useState(10);
   const [duration, setDuration] = useState(60);
   const [visualStyle, setVisualStyle] = useState(
     "Tranh sơn mài và thủy mặc truyền thống Việt Nam",
@@ -221,9 +221,9 @@ export default function Home() {
 
             <div className="field-row">
               <label>
-                Số cảnh
+                Số cảnh / ảnh
                 <select value={sceneCount} onChange={(event) => setSceneCount(Number(event.target.value))}>
-                  {[4, 5, 6, 7, 8, 9, 10].map((count) => <option key={count}>{count}</option>)}
+                  {[6, 8, 10, 12, 15, 18, 20, 24].map((count) => <option key={count}>{count}</option>)}
                 </select>
               </label>
               <label>

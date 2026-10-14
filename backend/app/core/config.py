@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     VIDEO_ENCODER: str = "h264_videotoolbox"
     VIDEO_BITRATE: str = "6M"
     VIDEO_OVERLAY_PATH: Path = BASE_DIR / "assets" / "video-overlay.png"
+    VIDEO_END_CARD_PATH: Path = BASE_DIR / "assets" / "video-end-card.png"
+    VIDEO_END_CARD_DURATION: float = 5.0
 
     # Local web apps
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

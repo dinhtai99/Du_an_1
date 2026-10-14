@@ -42,6 +42,14 @@ class VideoRenderer:
                 )
                 clips.append(clip_path)
 
+            if settings.VIDEO_END_CARD_PATH.is_file():
+                end_card_path = temp_dir / "end_card.mp4"
+                await self._render_end_card(
+                    image_path=settings.VIDEO_END_CARD_PATH,
+                    output_path=end_card_path,
+                )
+                clips.append(end_card_path)
+
             concat_file = temp_dir / "clips.txt"
             concat_file.write_text(
                 "".join(f"file '{clip.name}'\n" for clip in clips),
@@ -144,6 +152,67 @@ class VideoRenderer:
                 str(output_path),
             ]
         )
+        await self._run_video_command(command)
+
+    async def _render_end_card(self, image_path: Path, output_path: Path) -> None:
+        width = settings.VIDEO_WIDTH
+        height = settings.VIDEO_HEIGHT
+        filter_complex = (
+            "[0:v]split=2[background_source][card_source];"
+            f"[background_source]scale={width}:{height}:"
+            "force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},gblur=sigma=30,"
+            "eq=brightness=-0.18,setsar=1[background];"
+            f"[card_source]scale={width}:{height}:"
+            "force_original_aspect_ratio=decrease,setsar=1[card];"
+            "[background][card]overlay=(W-w)/2:(H-h)/2:"
+            "format=auto[outv]"
+        )
+        command = [
+            settings.FFMPEG_PATH,
+            "-y",
+            "-loop",
+            "1",
+            "-framerate",
+            str(settings.VIDEO_FPS),
+            "-i",
+            str(image_path),
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=48000",
+            "-filter_complex",
+            filter_complex,
+            "-map",
+            "[outv]",
+            "-map",
+            "1:a:0",
+            "-t",
+            f"{settings.VIDEO_END_CARD_DURATION:.3f}",
+            "-c:v",
+            settings.VIDEO_ENCODER,
+        ]
+        if settings.VIDEO_ENCODER.endswith("videotoolbox"):
+            command.extend(["-allow_sw", "1"])
+        command.extend(
+            [
+                "-b:v",
+                settings.VIDEO_BITRATE,
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-ar",
+                "48000",
+                "-shortest",
+                str(output_path),
+            ]
+        )
+        await self._run_video_command(command)
+
+    async def _run_video_command(self, command: list[str]) -> None:
         try:
             await self._run(command)
         except VideoRenderError:
